@@ -9,73 +9,132 @@ import {
 } from "@mui/material";
 
 import InputAdornment from "@mui/material/InputAdornment";
+import SmsIcon from "@mui/icons-material/Sms";
+import GroupAddIcon from "@mui/icons-material/GroupAdd";
 
 import {
     useGetPracticePatients,
     useGetDoc,
     createChannel,
-    getPatients,
+    getPatient,
+    practicePatientListQuery,
 } from "../../../dataModels/practice/practiceModel";
 
 import SearchIcon from "@mui/icons-material/Search";
 
-function Members({ practiceId, setSelectedPatient }) {
-    const members = useGetPracticePatients(practiceId);
+import {
+    useFirestoreDocument,
+    useFirestoreQueryData,
+} from "@react-query-firebase/firestore";
+import { connect } from "react-redux";
 
-    const [filteredMembers, setFilteredMembers] = useState();
-    const [originalMembers, setOriginalMembers] = useState();
+function Members({
+    businessId,
+    setSelectedPatient,
+    manualEntries,
+    setManualEntries,
+    setOpenSelectedPatientModal,
+}) {
+    const patientList = useGetPracticePatients(businessId);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const patients = await getPatients(members);
-            setFilteredMembers(patients);
-            setOriginalMembers(patients);
-        };
+    if (!patientList) {
+        return <div>Loading...</div>;
+    }
 
-        fetchData().catch((error) => console.log("Error: ", error));
-    }, [members]);
-
-    console.log("First Fetch: ", members);
-
-    console.log("Set Filtered Cusomers: ", filteredMembers);
     return (
         <div>
-            <Search
-                setFilteredMembers={setFilteredMembers}
-                filteredMembers={filteredMembers}
-                originalMembers={originalMembers}
-            />
+            <Search />
             <div>
-                {filteredMembers?.map((member, index) => (
+                {patientList?.map((patient, index) => (
                     <Member
                         key={index}
-                        member={member}
-                        practiceId={practiceId}
+                        patient={patient}
+                        businessId={businessId}
                         setSelectedPatient={setSelectedPatient}
+                        manualEntries={manualEntries}
+                        setManualEntries={setManualEntries}
+                        setOpenSelectedPatientModal={
+                            setOpenSelectedPatientModal
+                        }
                     />
                 ))}
 
-                <div
+                {/* <div
                     style={{ cursor: "pointer", marginTop: "6px" }}
                     className="Member"
                 >
                     <div className="MemberStatus online" />
                     cleverbot
-                </div>
+                </div> */}
             </div>
         </div>
     );
 }
 
-const Member = ({ member, practiceId, setSelectedPatient }) => {
+const Member = ({
+    patient,
+    businessId,
+    setSelectedPatient,
+    manualEntries,
+    setManualEntries,
+    setOpenSelectedPatientModal,
+}) => {
+    const handleAttachNumber = () => {
+        if (
+            manualEntries.some((entry) => entry.cellPhone === patient.cellPhone)
+        ) {
+            alert("Number Already Included");
+        } else {
+            setManualEntries((prev) => [
+                ...prev,
+                {
+                    displayName: patient.firstName + " " + patient.lastName,
+                    cellPhone: patient.cellPhone,
+                },
+            ]);
+        }
+    };
+
     return (
         <div
-            style={{ cursor: "pointer", marginTop: "6px" }}
-            onClick={() => setSelectedPatient(member)}
+            style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                cursor: "pointer",
+                marginTop: "6px",
+                border: "1px solid #ccc",
+                borderRadius: "10px",
+                padding: "10px",
+            }}
+            // onClick={() => setSelectedPatient(memberData.data())}
             className="Member"
         >
-            <div className="MemberStatus offline" />
-            {member?.displayName}
+            <div className="MemberStatus offline">
+                {patient.firstName + " " + patient.lastName}
+            </div>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    color: "#1c76d2",
+                }}
+            >
+                <SmsIcon
+                    sx={{ marginRight: "10px" }}
+                    onClick={handleAttachNumber}
+                />
+                <GroupAddIcon
+                    sx={{ marginRight: "12px" }}
+                    onClick={() => {
+                        setSelectedPatient({
+                            ...patient,
+                            patientId: patient.id,
+                        });
+                        setOpenSelectedPatientModal(true);
+                    }}
+                />
+            </div>
         </div>
     );
 };
@@ -159,4 +218,10 @@ const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
     );
 };
 
-export default Members;
+const mapStateToProps = (state) => {
+    return {
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, {})(Members);

@@ -1,6 +1,9 @@
-import { useFirestoreDocument } from "@react-query-firebase/firestore";
+import { useEffect } from "react";
+import { connect } from "react-redux";
 import styled from "styled-components";
-import { getPractice } from "../../../dataModels/practice/practiceModel";
+import { fetchUser } from "../../../../redux/practice/actions/authActions";
+import { setBusiness } from "../../../../redux/practice/actions/businessProfileActions";
+import Subscription from "../../payments/Subscription";
 
 const Container = styled.div`
     display: flex;
@@ -13,25 +16,22 @@ const DetailsWrapper = styled.article`
     border-radius: 10px;
 `;
 
-function HomeBody() {
-    const practiceId = "fpVAtpBjJLPUanlCydra";
+function HomeBody({ business, businessId, setBusiness }) {
+    console.log("business at hombody: ", business, businessId);
+    useEffect(() => {
+        console.log("Useeffect at homebody");
+        setBusiness(businessId);
+        // fetchUser()
+    }, [businessId]);
 
-    // Access the client
-    const queryRef = getPractice(practiceId);
-
-    // Provide the query to the hook
-    const query = useFirestoreDocument(["practice"], queryRef);
-
-    if (query.isLoading) {
+    if (business?.isLoading) {
         return <div>Loading...</div>;
     }
-
-    const practice = query.data;
 
     return (
         <Container>
             <h1>
-                Welcome {practice.practiceName}!! Help your patients help you
+                Welcome {business?.practiceName}!! Help your patients help you
                 grow your practice.
             </h1>
             <h2>
@@ -47,6 +47,8 @@ function HomeBody() {
                 Promotes you to their inner circle
             </div>
 
+            <Subscription />
+
             {/* <img
                 src="https://cms.podium.com/wp-content/uploads/2022/04/HN-Homepage-2.gif"
                 alt="texting"
@@ -59,4 +61,11 @@ function HomeBody() {
     );
 }
 
-export default HomeBody;
+const mapStateToProps = (state) => {
+    return {
+        business: state.business.business,
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, { setBusiness })(HomeBody);

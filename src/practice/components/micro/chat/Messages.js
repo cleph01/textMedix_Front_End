@@ -2,11 +2,12 @@ import { useParams, Link } from "react-router-dom";
 
 import {
     useGetChatMessages,
-    useGetDoc,
+    useGetFirstMessagePatientByCellphone,
     useGetPatientByCellphone,
-} from "../../../dataModels/practice/practiceModel.js";
+} from "../../../dataModels/practice/chatModel.js";
 
 import styled from "styled-components";
+import { connect } from "react-redux";
 
 const Container = styled.div`
     flex: 1;
@@ -76,18 +77,16 @@ const DayText = styled.div`
 
 const MessageContent = styled.div``;
 
-function Messages({ practiceId }) {
+function Messages({ businessId }) {
     const { cellphone } = useParams();
 
-    console.log("Cellphone at Messages: ", cellphone);
+    const messages = useGetChatMessages(businessId, cellphone);
 
-    const messages = useGetChatMessages(
-        `practice/${practiceId}/chats/${cellphone}/messages`
-    );
+    if (!messages) return <div>...Loading</div>;
 
     return (
         <Container>
-            <Header />
+            <Header businessId={businessId} />
             <EndOfMessages>That's every message!</EndOfMessages>
             {messages.map((message, index) => {
                 const previous = messages[index - 1];
@@ -96,7 +95,11 @@ function Messages({ practiceId }) {
                     !previous ||
                     message.patientPhoneNumber !== previous.patientPhoneNumber;
                 return showAvatar ? (
-                    <FirsMessageFromUser key={index} message={message} />
+                    <FirsMessageFromUser
+                        key={index}
+                        message={message}
+                        businessId={businessId}
+                    />
                 ) : (
                     <div key={index}>
                         <MessageNoAvatar>
@@ -129,16 +132,20 @@ const CellPPhone = styled.div`
 
 const Recipient = styled.div``;
 
-const Header = () => {
+const Header = ({ businessId }) => {
     const { cellphone } = useParams();
 
-    const patient = useGetPatientByCellphone(cellphone);
+    const patient = useGetPatientByCellphone(businessId, cellphone);
 
+    console.log("patient at messages header: ", patient, cellphone);
     return (
         <HeaderContainer>
             <Recipient>
                 <Name>
-                    @ {patient?.displayName ? patient?.displayName : cellphone}
+                    @{" "}
+                    {patient
+                        ? `${patient.firstName} ${patient.lastName}`
+                        : cellphone}
                 </Name>
                 {patient?.displayName && <CellPPhone>{cellphone}</CellPPhone>}
             </Recipient>
@@ -147,10 +154,10 @@ const Header = () => {
     );
 };
 
-const FirsMessageFromUser = ({ message, showDay }) => {
-    const author = useGetDoc(`patients/${message.patientId}`);
+const FirsMessageFromUser = ({ message, showDay, businessId }) => {
+    const author = useGetFirstMessagePatientByCellphone(businessId, message);
 
-    console.log(" author: ", author);
+    console.log("message: ", message);
     return (
         <div>
             {showDay && (
@@ -165,11 +172,19 @@ const FirsMessageFromUser = ({ message, showDay }) => {
                 <Avatar />
                 <Author>
                     <div>
-                        <UserName>
-                            {/* {author && author.displayName}{" "} */}
-                        </UserName>
+                        {message.direction === "in" ? (
+                            <UserName>
+                                {author &&
+                                    `${author.firstName} ${author.lastName}`}
+                            </UserName>
+                        ) : (
+                            <UserName>
+                                <em>(bussiness)</em> {message.businessAuthor}
+                            </UserName>
+                        )}
+                        {"  "}
                         <TimeStamp>
-                            {/* {message.createdOn.toDate()} */}
+                            {message.createdOn.toDate().toLocaleString()}
                         </TimeStamp>
                     </div>
                     <MessageContent>{message.text}</MessageContent>
@@ -178,4 +193,11 @@ const FirsMessageFromUser = ({ message, showDay }) => {
         </div>
     );
 };
-export default Messages;
+
+const mapStateToProps = (state) => {
+    return {
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, {})(Messages);

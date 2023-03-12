@@ -1,12 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-
-import { collection, addDoc, Timestamp } from "firebase/firestore";
-
-import { db } from "../../../../utils/db/firebaseConfig";
+import { useState } from "react";
 
 import BlastMembers from "../../micro/blast/BlastMembers";
 
-import GroupListModal from "../../micro/blast/modals/GroupListModal";
+import GroupCategoryModal from "../../micro/blast/modals/GroupCategoryModal";
+
+import SelectedPatientModal from "../../micro/blast/modals/SelectedPatientModal";
 
 import {
     Avatar,
@@ -23,13 +21,21 @@ import {
     Typography,
 } from "@mui/material";
 import { Delete, Edit } from "@mui/icons-material";
+import HighlightOffIcon from "@mui/icons-material/HighlightOff";
+import SmsIcon from "@mui/icons-material/Sms";
+import GroupAddIcon from "@mui/icons-material/GroupAdd";
+import CircularProgress from "@mui/material/CircularProgress";
 
 import {
-    useGetAllGroups,
-    useGetPatientGroups,
-} from "../../../dataModels/practice/practiceModel";
+    addSmsDocs,
+    getPatientsByIdArr,
+    useGetPracticeGroupList,
+    saveSmsTemplate,
+} from "../../../dataModels/practice/smsBlastModel";
 
 import styled from "styled-components";
+import TemplateModal from "../../micro/blast/modals/TemplateModal";
+import { connect } from "react-redux";
 
 const Container = styled.div`
     display: flex;
@@ -47,7 +53,7 @@ const MainSection = styled.section`
 const RightSidebar = styled.section`
     padding: 8px;
     border-left: 1px solid #eee;
-    width: 150px;
+    width: 250px;
 `;
 
 const Body = styled.section`
@@ -56,21 +62,39 @@ const Body = styled.section`
     height: 100%;
 `;
 
-const BlastHome = () => {
-    const [time, setTime] = useState({ hour: "", minute: "", meridiem: "" });
-    const [date, setDate] = useState(null);
+const BlastHome = ({ business }) => {
     const [searchLabel, setSearchLabel] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedPatient, setSelectedPatient] = useState();
-    const [reminderMessage, setReminderMessage] = useState("");
-    const [openModal, setOpenModal] = useState(false);
-    const [groupMembers, setGroupMembers] = useState([]);
+    const [sendToSMSGroup, setsendToSMSGroup] = useState(null);
+    const [sendToSMSManual, setSendToSMSManual] = useState();
+    const [selectedPatient, setSelectedPatient] = useState({ patientId: "" });
+    const [blastMessage, setBlastMessage] = useState("");
+    const [openGroupModal, setOpenGroupModal] = useState(false);
+    const [openSelectedPatientModal, setOpenSelectedPatientModal] =
+        useState(false);
+    const [openTemplateModal, setOpenTemplateModal] = useState(false);
+    const [groupModalCategory, setGroupModalCategory] = useState({ id: "bla" });
 
-    const practiceId = "fpVAtpBjJLPUanlCydra";
+    const [blastOption, setBlastOption] = useState("manual");
+
+    const [manualEntries, setManualEntries] = useState([]);
+
+    const [groups, setGroups] = useState();
+
+    const [submitBtnDisabled, setSubmitBtnDisabled] = useState(false);
+
+    const [selectedTemplate, setSelectedTemplate] = useState();
+    const [newTemplate, setNewTemplate] = useState();
+
+    const deleteManualEntry = (number) => {
+        setManualEntries((prev) =>
+            prev.filter((entry) => entry.cellPhone !== number)
+        );
+    };
 
     const handleMesssageChange = (e) => {
         e.preventDefault();
-        setReminderMessage(e.target.value);
+        setBlastMessage(e.target.value);
     };
 
     const handleSearchTermChange = (e) => {
@@ -87,54 +111,85 @@ const BlastHome = () => {
         setSearchLabel(value);
     };
 
-    console.log("Found patient: ");
-
     const onSubmit = async (e) => {
-        e.preventDefault();
+        if (blastOption === "group") {
+            if (!sendToSMSGroup || sendToSMSGroup.members.length === 0) {
+                alert("No Group Selected or Members are 0");
+            } else {
+                e.preventDefault();
+                console.log(sendToSMSGroup);
 
-        if (selectedPatient.firstName) {
-            const timeStr = `${time.hour}:${time.minute} ${time.meridiem}`;
+                const smsList = await getPatientsByIdArr(
+                    sendToSMSGroup.members
+                );
+                console.log("Send to SMS LIST: ", smsList);
+                setSubmitBtnDisabled(true);
 
-            const convertTime = (timeStr) => {
-                const [time, modifier] = timeStr.split(" ");
-                let [hours, minutes] = timeStr.split(":");
-                if (hours === "12") {
-                    hours = "00";
+                try {
+                    const batchAwait = await addSmsDocs(
+                        smsList.map((entry) => ({
+                            to: entry.cellPhone,
+                            from: business.twilioNumber,
+                            body: blastMessage,
+                        }))
+                    );
+
+                    console.log("Batch Await response: ", batchAwait);
+                } catch (error) {
+                    console.log(
+                        "error on batch: ",
+                        error + ":" + error.message
+                    );
                 }
-                if (modifier === "PM") {
-                    hours = parseInt(hours, 10) + 12;
-                }
-                return `${hours}:${minutes.split(" ")[0]}`;
-            };
-
-            const dataObj = {
-                patientId: selectedPatient.id,
-                practiceId: "fpVAtpBjJLPUanlCydra",
-                patientCell: selectedPatient.cellNumber,
-                message: reminderMessage,
-                practiceTwilioNumber: "+19144001284",
-                // sendOnDate: moment(date).format("l"),
-                sendOnTime: convertTime(timeStr),
-                createdOn: Timestamp.fromDate(new Date()),
-            };
-
-            const docRef = await addDoc(
-                collection(db, "notifications"),
-                dataObj
-            );
-
-            if (docRef.id) {
-                console.log("Notication Saved: ", docRef.id);
             }
-
-            console.log("Add Reminder Data Obj: ", dataObj);
         } else {
-            alert("Select a patient first");
+            if (manualEntries.length === 0) {
+                alert("No Manual Numbers added");
+            } else {
+                e.preventDefault();
+                // console.log(
+                //     "Manual Entries: ",
+                //     manualEntries.map((entry) => ({
+                //         to: entry.cellPhone,
+                //         from: business.twilioNumber,
+                //         body: blastMessage,
+                //     }))
+                // );
+
+                setSubmitBtnDisabled(true);
+
+                try {
+                    const batchAwait = await addSmsDocs(
+                        manualEntries.map((entry) => ({
+                            to: entry.cellPhone,
+                            from: business.twilioNumber,
+                            body: blastMessage,
+                        }))
+                    );
+
+                    console.log("Batch Await response: ", batchAwait);
+                } catch (error) {
+                    console.log(
+                        "error on batch: ",
+                        error + ":" + error.message
+                    );
+                }
+            }
         }
     };
 
-    console.log("Select Date: ", date);
-    console.log("Selected patient at Blast Home: ", selectedPatient);
+    const handleSaveSmsTemplate = () => {
+        if (blastMessage !== newTemplate && blastMessage) {
+            try {
+                setNewTemplate(blastMessage);
+                saveSmsTemplate(business.businessId, blastMessage);
+            } catch (error) {
+                console.log("Error Saving Sms Template: ", error.message);
+            }
+        } else {
+            alert("Same Template Just Added or Field is Empty");
+        }
+    };
 
     return (
         <Container>
@@ -150,92 +205,111 @@ const BlastHome = () => {
                             margin: "0px 10px",
                         }}
                     >
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                            }}
-                        >
-                            <h1>Your Groups</h1>
-                            <div
-                                style={{
-                                    border: "1px solid #ccc",
-                                    borderRadius: "5px",
-                                    padding: "10px",
-                                    boxShadow:
-                                        "5px 5px 5px rgba(68, 68, 68, 0.6)",
-                                }}
-                            >
-                                Add New Group
-                            </div>
-                        </div>
+                        <h1>Your Groups</h1>
 
                         <Groups
-                            practiceId={practiceId}
-                            setOpenModal={setOpenModal}
-                            setGroupMembers={setGroupMembers}
+                            businessId={business.businessId}
+                            setOpenGroupModal={setOpenGroupModal}
+                            setGroupModalCategory={setGroupModalCategory}
+                            setsendToSMSGroup={setsendToSMSGroup}
+                            setBlastOption={setBlastOption}
                         />
                     </div>
 
-                    {/* {selectedPatient && (
-                        <SelectedPatient
-                            selectedPatient={selectedPatient}
-                            practiceId={practiceId}
-                        />
-                    )} */}
                     <div
                         style={{
                             display: "flex",
                             justifyContent: "space-between",
-                            alignItems: "end",
+                            alignItems: "flex-start",
+                            borderTop: "1px solid #ccc",
                             padding: "10px",
                         }}
                     >
-                        <CellPhoneBox />
                         <div
                             style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                flex: "1",
-
-                                marginLeft: "10px",
+                                padding: "8px",
                             }}
                         >
-                            {selectedPatient && (
-                                <SelectedPatient
-                                    selectedPatient={selectedPatient}
-                                    practiceId={practiceId}
+                            {blastOption === "group" ? (
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        width: "100%",
+                                    }}
+                                >
+                                    <div style={{ marginLeft: "5px" }}>
+                                        {sendToSMSGroup?.groupName ||
+                                            "Select A Group"}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div
+                                    style={{
+                                        display: "flex",
+
+                                        flexWrap: "wrap",
+                                        padding: "6px",
+                                        maxHeight: "250px",
+
+                                        marginBottom: "3px",
+                                        overflowY: "scroll",
+                                    }}
+                                >
+                                    {manualEntries.map((contact, i) => (
+                                        <ManualEntry
+                                            key={i}
+                                            contact={contact}
+                                            deleteManualEntry={
+                                                deleteManualEntry
+                                            }
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div
+                            style={{
+                                maxWidth: "350px",
+                                borderLeft: "1px solid #ccc",
+                                paddingLeft: "8px",
+                            }}
+                        >
+                            Send SMS to Who:
+                            <RadioButtonsGroup
+                                setBlastOption={setBlastOption}
+                                blastOption={blastOption}
+                            />
+                            {blastOption === "manual" && (
+                                <InputRecipients
+                                    setManualEntries={setManualEntries}
+                                    manualEntries={manualEntries}
                                 />
                             )}
-                            <div
-                                style={{
-                                    justifyContent: "center",
-                                    padding: "8px",
-                                }}
-                            >
-                                Send SMS to Who:
-                                <RadioButtonsGroup />
-                            </div>
-                            <InputRecipients />
                             <TextField
                                 id="outlined-multiline-static"
                                 label="Message To Send"
                                 multiline
                                 rows={4}
-                                value={reminderMessage}
+                                value={blastMessage}
                                 onChange={handleMesssageChange}
                                 placeholder="Enter Message"
                                 inputProps={{ maxLength: 140 }}
                                 sx={{ width: "100%" }}
                             />
-
                             <Button
                                 variant="contained"
                                 color="primary"
                                 onClick={onSubmit}
+                                disabled={submitBtnDisabled}
                             >
-                                Submit
+                                {submitBtnDisabled ? (
+                                    <CircularProgress size={22} />
+                                ) : (
+                                    "Submit"
+                                )}
                             </Button>
                             <div
                                 style={{
@@ -246,8 +320,18 @@ const BlastHome = () => {
                                     color: "grey",
                                 }}
                             >
-                                <div>Templates</div>
-                                <div>Save to Templates</div>
+                                <div
+                                    style={{ cursor: "pointer" }}
+                                    onClick={() => setOpenTemplateModal(true)}
+                                >
+                                    Templates
+                                </div>
+                                <div
+                                    style={{ cursor: "pointer" }}
+                                    onClick={handleSaveSmsTemplate}
+                                >
+                                    Save to Templates
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -255,16 +339,60 @@ const BlastHome = () => {
             </MainSection>
             <RightSidebar>
                 <BlastMembers
-                    practiceId={practiceId}
+                    businessId={business.businessId}
                     setSelectedPatient={setSelectedPatient}
+                    manualEntries={manualEntries}
+                    setManualEntries={setManualEntries}
+                    setOpenSelectedPatientModal={setOpenSelectedPatientModal}
                 />
             </RightSidebar>
-            <GroupListModal
-                openModal={openModal}
-                setOpenModal={setOpenModal}
-                groupMembers={groupMembers}
+
+            <SelectedPatientModal
+                openSelectedPatientModal={openSelectedPatientModal}
+                setOpenSelectedPatientModal={setOpenSelectedPatientModal}
+                businessId={business.businessId}
+                selectedPatient={selectedPatient}
+            />
+            <GroupCategoryModal
+                openGroupModal={openGroupModal}
+                setOpenGroupModal={setOpenGroupModal}
+                groupModalCategory={groupModalCategory}
+                businessId={business.businessId}
+            />
+            <TemplateModal
+                openTemplateModal={openTemplateModal}
+                setOpenTemplateModal={setOpenTemplateModal}
+                businessId={business.businessId}
+                setSelectedTemplate={setSelectedTemplate}
+                setBlastMessage={setBlastMessage}
             />
         </Container>
+    );
+};
+
+const EntryItem = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #ccc;
+    border-radius: 15px;
+
+    padding: 6px;
+    background-color: #ccc;
+    color: #1c76d2;
+    margin-right: 3px;
+    margin-bottom: 3px;
+`;
+
+const ManualEntry = ({ contact, deleteManualEntry }) => {
+    return (
+        <EntryItem>
+            {contact.displayName || contact.cellPhone} {"  "}
+            <HighlightOffIcon
+                sx={{ marginLeft: "8px" }}
+                onClick={() => deleteManualEntry(contact.cellPhone)}
+            />
+        </EntryItem>
     );
 };
 
@@ -372,7 +500,7 @@ const CellPhoneBox = () => {
 const RecipientInput = styled.input`
     font: inherit;
     border: 1px solid transparent;
-
+    padding: 16px;
     &hover {
         border-color: #ccc;
     }
@@ -390,19 +518,92 @@ const InputWrapper = styled.div`
     height: 50px;
 `;
 
-const InputRecipients = () => {
+const InputRecipients = ({ manualEntries, setManualEntries }) => {
+    const [cellphone, setCellphone] = useState({
+        formatted: "",
+        raw: "",
+    });
+
+    const handleCellChange = (e) => {
+        e.preventDefault();
+
+        // this is where we'll call our future formatPhoneNumber function that we haven't written yet.
+        const formattedPhoneNumber = formatPhoneNumber(e.target.value);
+        // we'll set the input value using our setInputValue
+
+        setCellphone({
+            formatted: formattedPhoneNumber,
+            raw: formattedPhoneNumber.replace(/[^\d]/g, ""),
+        });
+    };
+
+    const formatPhoneNumber = (value) => {
+        // if input value is falsy eg if the user deletes the input, then just return
+        if (!value) return value;
+
+        // clean the input for any non-digit values.
+        const phoneNumber = value.replace(/[^\d]/g, "");
+
+        // phoneNumberLength is used to know when to apply our formatting for the phone number
+        const phoneNumberLength = phoneNumber.length;
+
+        // we need to return the value with no formatting if its less then four digits
+        // this is to avoid weird behavior that occurs if you  format the area code to early
+
+        if (phoneNumberLength < 4) return phoneNumber;
+
+        // if phoneNumberLength is greater than 4 and less the 7 we start to return
+        // the formatted number
+        if (phoneNumberLength < 7) {
+            return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+        }
+
+        // finally, if the phoneNumberLength is greater then seven, we add the last
+        // bit of formatting and return it.
+        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(
+            3,
+            6
+        )}-${phoneNumber.slice(6, 10)}`;
+    };
+
+    const handleAttachNumber = () => {
+        if (
+            manualEntries.some(
+                (entry) => entry.cellPhone === `+1${cellphone.raw}`
+            )
+        ) {
+            alert("Number Already Included");
+        } else {
+            setManualEntries((prev) => [
+                ...prev,
+                { cellPhone: `+1${cellphone.raw}` },
+            ]);
+        }
+
+        setCellphone({
+            formatted: "",
+            raw: "",
+        });
+    };
+
     return (
         <HeaderContainer>
             <InputWrapper>
-                <RecipientInput placeholder="Enter Name" />
-                <RecipientInput placeholder="Enter Number" />
+                <RecipientInput
+                    onChange={handleCellChange}
+                    value={cellphone.formatted}
+                    placeholder="Enter Number"
+                />
             </InputWrapper>
-            <ConfirmButton>Attach</ConfirmButton>
+            <ConfirmButton onClick={handleAttachNumber}>Attach</ConfirmButton>
         </HeaderContainer>
     );
 };
 
-const RadioButtonsGroup = () => {
+const RadioButtonsGroup = ({ blastOption, setBlastOption }) => {
+    const handleChange = (event) => {
+        setBlastOption(event.target.value);
+    };
     return (
         <FormControl>
             <RadioGroup
@@ -410,24 +611,16 @@ const RadioButtonsGroup = () => {
                 defaultValue="OneContact"
                 name="radio-buttons-group"
                 sx={{ flexDirection: "row" }}
+                value={blastOption}
+                onChange={handleChange}
             >
                 <FormControlLabel
-                    value="OneContact"
-                    control={<Radio />}
-                    label="One Contact"
-                />
-                <FormControlLabel
-                    value="MultipleContacts"
-                    control={<Radio />}
-                    label="Multiple Contacts"
-                />
-                <FormControlLabel
-                    value="SelectGroup"
+                    value="group"
                     control={<Radio />}
                     label="Select Group(s)"
                 />
                 <FormControlLabel
-                    value="Manual"
+                    value="manual"
                     control={<Radio />}
                     label="Manual Entry"
                 />
@@ -436,10 +629,20 @@ const RadioButtonsGroup = () => {
     );
 };
 
-const Groups = ({ practiceId, setOpenModal, setGroupMembers }) => {
-    const groups = useGetAllGroups(practiceId);
+const Groups = ({
+    businessId,
+    setsendToSMSGroup,
+    setOpenGroupModal,
+    setGroupModalCategory,
+    setBlastOption,
+}) => {
+    const groupList = useGetPracticeGroupList(businessId);
 
-    console.log("Groups: ", groups);
+    if (!groupList) {
+        return <div>Loading...</div>;
+    }
+
+    console.log("Groups: ", groupList);
 
     return (
         <div
@@ -450,20 +653,23 @@ const Groups = ({ practiceId, setOpenModal, setGroupMembers }) => {
                 padding: "10px",
             }}
         >
-            {groups?.map((group, index) => (
+            {groupList?.map((group, index) => (
                 <CategoryBox
-                    setOpenModal={setOpenModal}
+                    key={index}
+                    setOpenGroupModal={setOpenGroupModal}
                     group={group}
-                    setGroupMembers={setGroupMembers}
+                    setGroupModalCategory={setGroupModalCategory}
+                    setsendToSMSGroup={setsendToSMSGroup}
+                    setBlastOption={setBlastOption}
                 />
             ))}
         </div>
     );
 };
-const SelectedPatient = ({ selectedPatient, practiceId }) => {
-    const groups = useGetPatientGroups(practiceId, selectedPatient.id);
+const SelectedPatient = ({ selectedPatient, businessId, groups }) => {
+    // const groups = useGetPatientGroups(businessId, selectedPatient.id);
 
-    console.log("custoemr group: ", groups);
+    // console.log("custoemr group: ", groups);
     return (
         <>
             <div>Selected Patient</div>
@@ -538,7 +744,7 @@ const SelectedPatient = ({ selectedPatient, practiceId }) => {
                                     marginLeft: "10px",
                                 }}
                             >
-                                {groups?.length > 0
+                                {/* {groups?.length > 0
                                     ? "Already in following groups:"
                                     : "** Not Part of an SMS Group Yet **"}
                                 {groups?.map((group, index) => (
@@ -550,7 +756,7 @@ const SelectedPatient = ({ selectedPatient, practiceId }) => {
                                     >
                                         <li>{group.groupName}</li>
                                     </Typography>
-                                ))}
+                                ))} */}
                             </div>
                         </div>
                     }
@@ -560,16 +766,15 @@ const SelectedPatient = ({ selectedPatient, practiceId }) => {
     );
 };
 
-const CategoryBox = ({ group, setOpenModal, setGroupMembers }) => {
+const CategoryBox = ({
+    group,
+    setOpenGroupModal,
+    setGroupModalCategory,
+    setsendToSMSGroup,
+    setBlastOption,
+}) => {
     return (
         <div
-            onClick={() => {
-                setGroupMembers({
-                    groupName: group.groupName,
-                    members: group.members,
-                });
-                setOpenModal(true);
-            }}
             style={{
                 display: "flex",
                 justifyContent: "center",
@@ -591,11 +796,50 @@ const CategoryBox = ({ group, setOpenModal, setGroupMembers }) => {
                     boxShadow: "5px 5px 5px rgba(68, 68, 68, 0.6)",
                 }}
             >
-                <div>{group?.groupName}</div>
-                <div>({group?.members.length})</div>
+                <div
+                    style={{ cursor: "pointer" }}
+                    onClick={() => {
+                        setGroupModalCategory(group);
+                        setOpenGroupModal(true);
+                    }}
+                >
+                    {group?.groupName}
+                </div>
+                <div style={{ margin: "12px 0px" }}>
+                    ({group?.members.length})
+                </div>
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        color: "#1c76d2",
+                        width: "100px",
+                    }}
+                >
+                    <SmsIcon
+                        sx={{ cursor: "pointer" }}
+                        onClick={() => {
+                            setsendToSMSGroup(group);
+                            setBlastOption("group");
+                        }}
+                    />
+                    <GroupAddIcon
+                        sx={{ cursor: "pointer" }}
+                        onClick={() => {
+                            setGroupModalCategory(group);
+                            setOpenGroupModal(true);
+                        }}
+                    />
+                </div>
             </div>
         </div>
     );
 };
 
-export default BlastHome;
+const mapStateToProps = (state) => {
+    return {
+        business: state.business,
+    };
+};
+
+export default connect(mapStateToProps, {})(BlastHome);

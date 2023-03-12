@@ -17,31 +17,6 @@ import {
 
 import { db } from "../../../utils/db/firebaseConfig";
 
-// Get All Open Chat Channels for a given practiceId
-// Each Channel represents and indivial User/CellPhone Number
-const useGetChatChannels = (practiceId) => {
-    const [channels, setChannels] = useState([]);
-
-    useEffect(() => {
-        const collectionRef = collection(db, `practice/${practiceId}/chats/`);
-
-        let q = query(collectionRef);
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            setChannels(
-                querySnapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }))
-            );
-        });
-
-        return unsubscribe;
-    }, []);
-
-    return channels;
-};
-
 // Get the all patient info from patient collection in firestore
 // using the Firestore reference path (ie. 'patients/${patientId}')
 const useGetDoc = (path) => {
@@ -59,11 +34,11 @@ const useGetDoc = (path) => {
 };
 
 // Get the patient by Phone Number
-const useGetPatientByCellphone = (cellphone) => {
+const useGetPatientByCellphone = (businessId,cellphone) => {
     const [patient, setPatient] = useState();
 
     useEffect(() => {
-        const collectionRef = collection(db, "patients");
+        const collectionRef = collection(db, `practice/${businessId}/patients`);
 
         let q = query(
             collectionRef,
@@ -85,40 +60,15 @@ const useGetPatientByCellphone = (cellphone) => {
     return patient;
 };
 
-// Get All Chat Messages in that Chat Channel
-// (ie. Messages bw. practice and that patient)
-const useGetChatMessages = (path) => {
-    const [docs, setDocs] = useState([]);
-
-    useEffect(() => {
-        const collectionRef = collection(db, path);
-
-        let q = query(collectionRef, orderBy("createdOn"));
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            setDocs(
-                querySnapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }))
-            );
-        });
-
-        return unsubscribe;
-    }, [path]);
-
-    return docs;
-};
-
 // Get All patients tied
 // (ie. Messages bw. practice and that patient)
 const useGetPracticePatients = (practiceId) => {
     const [members, setMembers] = useState([]);
 
     useEffect(() => {
-        const collectionRef = collection(db, "practice-patient-relationship");
+        const collectionRef = collection(db, `practice/${practiceId}/patients`);
 
-        let q = query(collectionRef, where("practiceId", "==", practiceId));
+        let q = query(collectionRef);
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             setMembers(
@@ -169,11 +119,9 @@ const createChannelFromMember = async (practiceId, patientId, cellPhone) => {
     );
 
     try {
-       
         setDoc(doc(db, `practice/${practiceId}/chats`, cellPhone.slice(2)), {
             patientId: patientId,
         });
-
 
         console.log("New Channel Created");
     } catch (error) {
@@ -301,27 +249,22 @@ const createSmsGroup = async (practiceId, groupName) => {
 };
 
 const practicePatientListQuery = (practiceId) => {
-    return query(
-        collection(db, "patient-practice-relationships"),
-        where("practiceId", "==", practiceId)
-    );
+    return query(collection(db, `practice/${practiceId}/patients`));
 };
 
 const getPatient = (path) => {
     return doc(db, path);
 };
 
-const getPatientRef = (patientId) => {
-    return doc(db, `patients/${patientId}`);
+const getPatientRef = (practiceId, patientId) => {
+    return doc(db, `practice/${practiceId}/patients/${patientId}`);
 };
 const getPractice = (practiceId) => {
     return doc(db, `practice/${practiceId}`);
 };
 
 export {
-    useGetChatChannels,
     useGetDoc,
-    useGetChatMessages,
     useGetPracticePatients,
     createChannelFromMember,
     createChannelFromOneOff,

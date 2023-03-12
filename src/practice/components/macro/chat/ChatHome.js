@@ -27,14 +27,14 @@ const RightSidebar = styled.section`
     width: 150px;
 `;
 
-function ChatMain({ practiceId }) {
+function ChatMain() {
     return (
         <Container>
             <MainSection>
                 <Switch>
                     <Route path="/practice/chat/:cellphone">
-                        <Messages practiceId={practiceId} />
-                        <ChatInputBox practiceId={practiceId} />
+                        <Messages />
+                        <ChatInputBox />
                     </Route>
                     <Route path="/practice/chat">
                         <ChatWelcome />
@@ -43,7 +43,7 @@ function ChatMain({ practiceId }) {
             </MainSection>
 
             <RightSidebar>
-                <ChatMembers practiceId={practiceId} />
+                <ChatMembers />
             </RightSidebar>
         </Container>
     );

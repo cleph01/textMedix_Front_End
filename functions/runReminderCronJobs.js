@@ -68,13 +68,11 @@ exports.runReminderCronJobs = functions.pubsub
                     );
 
                     if (doc.data().sendOnTime === serverTimeStr) {
-                        const docRef = await db
-                            .collection("outgoingTextMessages")
-                            .add({
-                                to: doc.data().patientCell,
-                                from: doc.data().practiceTwilioNumber,
-                                body: doc.data().message,
-                            });
+                        const docRef = await db.collection("textMessages").add({
+                            to: doc.data().patientCell,
+                            from: doc.data().practiceTwilioNumber,
+                            body: doc.data().message,
+                        });
 
                         console.log(" docRef Id: ", docRef.id);
 
@@ -89,8 +87,7 @@ exports.runReminderCronJobs = functions.pubsub
                                 .set({
                                     practiceTwilioNumber:
                                         doc.data().practiceTwilioNumber,
-                                    patientPhoneNumber:
-                                        doc.data().patientCell,
+                                    patientPhoneNumber: doc.data().patientCell,
                                     body: doc.data().message,
                                     direction: "out",
                                     outgoingTextMessagesId: docRef.id,

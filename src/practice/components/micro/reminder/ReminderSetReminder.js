@@ -1,8 +1,8 @@
-import { useState, useContext } from "react";
-import { PracticeContext } from "../../../contexts/PracticeContext";
-import { useFirestoreCollectionMutation } from "@react-query-firebase/firestore";
-import { getReminderCollectionRef } from "../../../dataModels/practice/reminderModel";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+
+import { createChannelFromMember } from "../../../dataModels/practice/practiceModel";
+import { addReminder } from "../../../dataModels/practice/reminderModel";
+import { useHistory } from "react-router-dom";
 import {
     Avatar,
     Button,
@@ -12,21 +12,27 @@ import {
     TextField,
 } from "@mui/material";
 
+import TextsmsIcon from "@mui/icons-material/Textsms";
+
 import NotificationDatePicker from "./NotificationDatePicker";
 import TimePicker from "./TimePicker";
 
 import moment from "moment";
+import { connect } from "react-redux";
+import TemplateModal from "../blast/modals/TemplateModal";
+import { saveSmsTemplate } from "../../../dataModels/practice/smsBlastModel";
 
-function ReminderSetReminder({ selectedPatient, reminders }) {
-    const addReminderCollectionRef = getReminderCollectionRef();
-
-    const addDocMutation = useFirestoreCollectionMutation(
-        addReminderCollectionRef
-    );
-    const practice = useContext(PracticeContext);
-
-    console.log("practice Context at Set Reminder: ", practice);
-
+function ReminderSetReminder({
+    selectedPatient,
+    reminders,
+    business,
+    message,
+}) {
+    console.log("practice at Set Reminder: ", business);
+    const [openTemplateModal, setOpenTemplateModal] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState();
+    const [newTemplate, setNewTemplate] = useState();
+    const [blastMessage, setBlastMessage] = useState("");
     const [reminderMessage, setReminderMessage] = useState("");
     const [time, setTime] = useState({ hour: "", minute: "", meridiem: "" });
     const [date, setDate] = useState(null);
@@ -56,25 +62,38 @@ function ReminderSetReminder({ selectedPatient, reminders }) {
 
             const dataObj = {
                 patientId: selectedPatient.id,
-                practiceId: practice.practiceId,
-                patientCell: selectedPatient.cellPhone,
+                practiceId: business.businessId,
+                patientCell: selectedPatient.data().cellPhone,
                 message: reminderMessage,
-                practiceTwilioNumber: practice.twilioNumber,
+                practiceTwilioNumber: business.twilioNumber,
                 sendOnDate: moment(date).format("l"),
                 sendOnTime: convertTime(timeStr),
                 createdOn: new Date(),
             };
 
-            addDocMutation.mutate(dataObj);
+            addReminder(dataObj);
         } else {
             alert("Selected a Patient first");
+        }
+    };
+
+    const handleSaveSmsTemplate = () => {
+        if (reminderMessage !== newTemplate && reminderMessage) {
+            try {
+                setNewTemplate(reminderMessage);
+                saveSmsTemplate(business.businessId, reminderMessage);
+            } catch (error) {
+                console.log("Error Saving Sms Template: ", error.message);
+            }
+        } else {
+            alert("Same Template Just Added or Field is Empty");
         }
     };
 
     return (
         <div
             style={{
-                borderTop: "1px #eee solid",
+                borderLeft: "1px solid #ccc",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -86,6 +105,7 @@ function ReminderSetReminder({ selectedPatient, reminders }) {
                 <div>
                     {selectedPatient && (
                         <SelectedPatient
+                            practiceId={business.businessId}
                             selectedPatient={selectedPatient}
                             reminders={reminders}
                         />
@@ -107,17 +127,25 @@ function ReminderSetReminder({ selectedPatient, reminders }) {
                     />
                 </div>
                 <div>
-                    {addDocMutation.isError && (
-                        <p>{addDocMutation.error.message}</p>
+                    {message && (
+                        <p
+                            style={{
+                                border: "1px solid red",
+                                color: "red",
+                                padding: "10px",
+                            }}
+                        >
+                            {message}
+                        </p>
                     )}
                     <Button
-                        disabled={addDocMutation.isLoading}
+                        disabled={false}
                         sx={{ width: "100%" }}
                         variant="contained"
                         color="primary"
                         onClick={onSubmit}
                     >
-                        {addDocMutation.isLoading ? "...Sending" : "Submit"}
+                        Sending
                     </Button>
                     <div
                         style={{
@@ -128,16 +156,45 @@ function ReminderSetReminder({ selectedPatient, reminders }) {
                             color: "grey",
                         }}
                     >
-                        <div>Templates</div>
-                        <div>Save to Templates</div>
+                        <div
+                            style={{ cursor: "pointer" }}
+                            onClick={() => setOpenTemplateModal(true)}
+                        >
+                            Templates
+                        </div>
+                        <div
+                            style={{ cursor: "pointer" }}
+                            onClick={handleSaveSmsTemplate}
+                        >
+                            Save to Templates
+                        </div>
                     </div>
                 </div>
             </div>
+            <TemplateModal
+                openTemplateModal={openTemplateModal}
+                setOpenTemplateModal={setOpenTemplateModal}
+                businessId={business.businessId}
+                setSelectedTemplate={setSelectedTemplate}
+                setBlastMessage={setBlastMessage}
+            />
         </div>
     );
 }
 
-const SelectedPatient = ({ selectedPatient, reminders }) => {
+const SelectedPatient = ({ selectedPatient, reminders, practiceId }) => {
+    const history = useHistory();
+
+    const handleChatPatient = () => {
+        createChannelFromMember(
+            practiceId,
+            selectedPatient.id,
+            selectedPatient.data().cellPhone
+        );
+        history.push(
+            `/practice/chat/${selectedPatient.data().cellPhone.slice(2)}`
+        );
+    };
     return (
         <div
             style={{
@@ -149,57 +206,27 @@ const SelectedPatient = ({ selectedPatient, reminders }) => {
                 padding: "10px",
             }}
         >
-            <div style={{ display: "flex", width: "50%" }}>
+            <div style={{ display: "flex", width: "100%" }}>
                 <ListItemAvatar>
                     <Avatar
                         alt={`Charlie}`}
                         src={`https://placekitten.com/64/64`}
                     />
                 </ListItemAvatar>
-                <div style={{ fontWeight: "bold" }}>
-                    {selectedPatient.displayName}
+                <div style={{ fontWeight: "bold", flex: "1" }}>
+                    {selectedPatient.data().displayName}
                 </div>
-                <div style={{ display: "flex", marginLeft: "10px" }}>
-                    <div
-                        style={{
-                            backgroundColor: "transparent",
-                            color: "#ffd700",
-                        }}
-                    >
-                        &#9733;
-                    </div>
-                    <div
-                        style={{
-                            backgroundColor: "transparent",
-                            color: "#ffd700",
-                        }}
-                    >
-                        &#9733;
-                    </div>
-                    <div
-                        style={{
-                            backgroundColor: "transparent",
-                            color: "#ffd700",
-                        }}
-                    >
-                        &#9733;
-                    </div>
-                    <div
-                        style={{
-                            backgroundColor: "transparent",
-                            color: "#ffd700",
-                        }}
-                    >
-                        &#9733;
-                    </div>
-                    <div
-                        style={{
-                            backgroundColor: "transparent",
-                            color: "#ccc",
-                        }}
-                    >
-                        &#9733;
-                    </div>
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        marginLeft: "10px",
+                    }}
+                >
+                    <TextsmsIcon
+                        onClick={handleChatPatient}
+                        style={{ color: "#bbb" }}
+                    />
                 </div>
             </div>
             <div style={{ marginTop: "6px" }}>Reminders as of Today:</div>
@@ -244,4 +271,11 @@ const PatientListItem = ({ selectedPatient }) => {
     );
 };
 
-export default ReminderSetReminder;
+const mapStateToProps = (state) => {
+    return {
+        business: state.business,
+        message: state.message.message,
+    };
+};
+
+export default connect(mapStateToProps, {})(ReminderSetReminder);

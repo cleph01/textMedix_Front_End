@@ -7,6 +7,9 @@ import HomeNav from "../macro/home/HomeNav";
 import ReminderNav from "../micro/reminder/ReminderNav";
 import BlastSideBar from "../micro/blast/SideBar";
 
+import { logout } from "../../../redux/practice/actions/authActions";
+import { connect } from "react-redux";
+
 const Container = styled.section`
     background: #454545;
     color: #fff;
@@ -49,11 +52,12 @@ const LogoutButton = styled.button`
     color: white;
 `;
 
-function LeftSideBar({ practiceId, setPatientId }) {
+function LeftSideBar({ user, logout }) {
+    console.log("user, logout at LeftSideBar: ", user, logout);
     return (
         <Container>
             <UserSection>
-                <User />
+                <User user={user} logout={logout} />
             </UserSection>
             <nav>
                 <HomeNav />
@@ -74,7 +78,11 @@ function LeftSideBar({ practiceId, setPatientId }) {
     );
 }
 
-const User = () => {
+const User = ({ user, logout }) => {
+    console.log("user, logout at User: ", user, logout);
+
+    if (!user) return;
+    
     return (
         <>
             <picture>
@@ -90,12 +98,17 @@ const User = () => {
             </picture>
 
             <div>
-                <div>Ryan Florence</div>
+                <div>{`${user?.firstName} ${user?.lastName}`}</div>
                 <div>
-                    <LogoutButton>log out</LogoutButton>
+                    <LogoutButton onClick={logout}>log out</LogoutButton>
                 </div>
             </div>
         </>
     );
 };
-export default LeftSideBar;
+
+const mapStateToProps = (state) => {
+    return { user: state.auth.user };
+};
+
+export default connect(mapStateToProps, { logout })(LeftSideBar);

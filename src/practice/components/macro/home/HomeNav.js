@@ -18,7 +18,7 @@ function HomeNav() {
             <Title>Menu</Title>
             <Link to="/">Home</Link>
             <Link to="/practice/chat">Chat Room</Link>
-            <Link to="/practice/influencers">Top Influencers</Link>
+
             <Link to="/practice/patients">All Patients</Link>
             <Link to="/practice/reminder">View Reminders</Link>
             <Link to="/practice/sms">Send Blast</Link>

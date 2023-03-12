@@ -24,7 +24,7 @@ const TimePicker = ({ time, setTime }) => {
             }}
         >
             <FormControl fullWidth>
-                <InputLabel id="hour-label">H</InputLabel>
+                <InputLabel id="hour-label">Hour</InputLabel>
                 <Select
                     labelId="hour-label"
                     id="demo-simple-select"
@@ -49,7 +49,7 @@ const TimePicker = ({ time, setTime }) => {
             </FormControl>
             <div sx={{ margin: "50px 50px" }}> : </div>
             <FormControl fullWidth>
-                <InputLabel id="hour-label">M</InputLabel>
+                <InputLabel id="hour-label">Minute</InputLabel>
                 <Select
                     labelId="hour-label"
                     id="demo-simple-select"
@@ -65,7 +65,7 @@ const TimePicker = ({ time, setTime }) => {
                 </Select>
             </FormControl>
             <FormControl fullWidth>
-                <InputLabel id="meridiem-label">P</InputLabel>
+                <InputLabel id="meridiem-label">PM/AM</InputLabel>
                 <Select
                     labelId="meridiem-label"
                     id="demo-simple-select"

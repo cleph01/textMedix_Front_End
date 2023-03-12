@@ -1,19 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-import { useFirestoreDocument } from "@react-query-firebase/firestore";
+import {
+    firebase,
+    auth,
+    getAuthenticationStatus,
+} from "./utils/db/firebaseConfig";
 
 import LeftSideBar from "./practice/components/layout/LeftSideBar";
 
 import Main from "./practice/components/layout/Main";
 
-import { PracticeContext } from "./practice/contexts/PracticeContext";
 import { getPractice } from "./practice/dataModels/practice/practiceModel";
 
 import styled from "styled-components";
 
-import { getAuth, signInWithEmailAndPassword } from "./utils/db/firebaseConfig";
+import SignIn from "./practice/components/auth/SignIn";
+import Register from "./practice/components/auth/Register";
 
-import TextLogo from "./assets/logo/textMedix_Text_Logo.jpg";
+import { fetchUser } from "./redux/practice/actions/authActions";
+import { connect } from "react-redux";
+import { Route, Switch } from "react-router-dom";
+import NoReferral from "./practice/components/auth/NoReferral";
+import PaymentSuccess from "./practice/components/payments/PaymentSuccess";
+import PaymentError from "./practice/components/payments/PaymentError";
 
 const AppMain = styled.main`
     position: absolute;
@@ -24,71 +33,41 @@ const AppMain = styled.main`
     display: flex;
 `;
 
-function App() {
-    const [user, setUser] = useState();
-    const [email, setEmail] = useState();
-    const [password, setPassword] = useState();
+function App({ user, fetchUser }) {
+    useEffect(() => {
+        fetchUser();
+    }, []);
 
-    const auth = getAuth();
+    console.log("isAuthenticated at App: ", getAuthenticationStatus());
+    return getAuthenticationStatus() ? (
+        <AppMain>
+            <LeftSideBar />
 
-    const handleEmailChange = (e) => {
-        setEmail(e.target.value);
-    };
-
-    const handlePasswordChange = (e) => {
-        setPassword(e.target.value);
-    };
-
-    const handleSignInEmail = async () => {
-        try {
-            const userCredential = await signInWithEmailAndPassword(
-                auth,
-                email,
-                password
-            );
-
-            setUser(userCredential.user);
-        } catch (error) {
-            console.log("Error Code: ", error.code, error.message);
-        }
-    };
-
-    const practiceId = "Sk2WVueweMIQjWOa98ZJ";
-
-    const practiceRef = getPractice(practiceId);
-
-    // Provide the query to the hook
-    const query = useFirestoreDocument(["practice"], practiceRef);
-
-    if (query.isLoading) {
-        return <div>Loading...</div>;
-    }
-
-    const practice = query.data;
-
-    console.log("practice: ", practice.data());
-
-    return user ? (
-        <PracticeContext.Provider
-            value={{ practiceId: practice.id, ...practice.data() }}
-        >
-            <AppMain>
-                <LeftSideBar />
-
-                <Main practiceId={practiceId} />
-            </AppMain>
-        </PracticeContext.Provider>
+            <Main />
+            <PaymentSuccess />
+        </AppMain>
     ) : (
-        <div>
-            <h1>SignIn</h1>
-            <img src={TextLogo} alt="logo" />
-            <div>
-                <input onChange={handleEmailChange} placeholder="email" />
-                <input onChange={handlePasswordChange} placeholder="password" />
-            </div>
-            <button onClick={handleSignInEmail}>Sign in with Email</button>
-        </div>
+        <Switch>
+            <Route path="/register/:businessId/:userEmail">
+                <Register />
+            </Route>
+            <Route path="/register/success">
+                <PaymentSuccess />
+            </Route>
+            <Route path="/register/error">
+                <PaymentError />
+            </Route>
+            <Route path="/">
+                <SignIn />
+            </Route>
+        </Switch>
     );
 }
 
-export default App;
+const mapStateToProps = (state) => {
+    return {
+        user: state.auth.user,
+    };
+};
+
+export default connect(mapStateToProps, { fetchUser })(App);

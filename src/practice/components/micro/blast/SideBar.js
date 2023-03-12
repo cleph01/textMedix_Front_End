@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 
 import { Button, TextField } from "@mui/material";
 
 import { createSmsGroup } from "../../../dataModels/practice/smsBlastModel";
 
-function SideBar() {
-    const [groupName, setGroupName] = useState();
+import { connect } from "react-redux";
 
-    const practiceId = "fpVAtpBjJLPUanlCydra";
+function SideBar({ businessId }) {
+    const [groupName, setGroupName] = useState();
 
     const handleGroupNameChange = (e) => {
         e.preventDefault();
@@ -18,11 +18,10 @@ function SideBar() {
     };
 
     const handleGroupNameSumbit = (e) => {
-        createSmsGroup(practiceId, groupName);
+        createSmsGroup(businessId, groupName);
         setGroupName("");
     };
 
-    console.log("Group Name: ", groupName);
     return (
         <div style={{ borderTop: "1px #eee solid", paddingTop: "5px" }}>
             <div style={{ padding: "8px 20px", marginTop: "15px" }}>
@@ -52,4 +51,10 @@ function SideBar() {
     );
 }
 
-export default SideBar;
+const mapStateToProps = (state) => {
+    return {
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, {})(SideBar);

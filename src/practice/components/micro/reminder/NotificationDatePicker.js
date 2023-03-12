@@ -12,7 +12,7 @@ const NotificationDatePicker = ({ date, setDate, selectedPatient }) => {
             {/* {selectedPatient.firstName && (
                 <PatientListItem patient={selectedPatient} />
             )} */}
-            <pre>{`Date Picker: ${date}`}</pre>
+            {/* <pre>{`Date Picker: ${date}`}</pre> */}
             <LocalizationProvider dateAdapter={AdapterMoment}>
                 <DatePicker
                     label="Pick a Date"

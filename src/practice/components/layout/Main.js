@@ -8,22 +8,23 @@ import BlastHome from "../macro/blast/BlastHome";
 import HomeBody from "../macro/home/HomeBody";
 import ChatHome from "../macro/chat/ChatHome";
 import ReviewHome from "../macro/reviews/ReviewHome";
-import TopInfluencers from "../macro/influencers/TopInfluencers";
+
 import AllPatientsHome from "../macro/patients/AllPatientsHome";
 
 import { db } from "../../../utils/db/firebaseConfig";
 
 import styled from "styled-components";
-import { practicePatientListQuery } from "../../dataModels/practice/practiceModel";
+
 const Container = styled.section`
     flex: 1;
 `;
-function Main({ practiceId }) {
+function Main() {
     return (
         <Container>
             <Route exact path="/">
-                <HomeBody practiceId={practiceId} />
+                <HomeBody />
             </Route>
+
             <Route path="/practice/reminder">
                 <ReminderHome />
             </Route>
@@ -31,16 +32,14 @@ function Main({ practiceId }) {
                 <BlastHome />
             </Route>
             <Route path="/practice/patients">
-                <AllPatientsHome practiceId={practiceId} />
+                <AllPatientsHome />
             </Route>
-            <Route path="/practice/influencers">
-                <TopInfluencers practiceId={practiceId} />
-            </Route>
+
             <Route path="/practice/chat">
-                <ChatHome practiceId={practiceId} />
+                <ChatHome />
             </Route>
             <Route path="/practice/reviews">
-                <ReviewHome practiceId={practiceId} />
+                <ReviewHome />
             </Route>
         </Container>
     );

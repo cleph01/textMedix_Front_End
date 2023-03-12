@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import {
     FormControl,
     IconButton,
@@ -7,48 +9,47 @@ import {
     OutlinedInput,
     Select,
 } from "@mui/material";
-import React, { useState } from "react";
+
 import {
     useGetPracticePatients,
-    useGetDoc,
     createChannelFromMember,
-    practicePatientListQuery,
-    getPatient,
 } from "../../../dataModels/practice/practiceModel";
 
 import SearchIcon from "@mui/icons-material/Search";
-import {
-    useFirestoreDocument,
-    useFirestoreQueryData,
-} from "@react-query-firebase/firestore";
 
-function Members({ practiceId }) {
-    console.log("practiceId: ", practiceId);
-    // Access the client
-    const queryRef = practicePatientListQuery(practiceId);
+import { connect } from "react-redux";
 
-    // Provide the query to the hook
-    const query = useFirestoreQueryData(["practicePatients"], queryRef);
+function Members({ businessId }) {
+    const [filteredPatientList, setFilteredPatientList] = useState();
 
-    if (query.isLoading) {
+    const patientList = useGetPracticePatients(businessId);
+
+    if (!patientList) {
         return <div>Loading...</div>;
     }
 
-    const members = query.data;
-
-    console.log("patients in Chat members: ", members);
     return (
         <div>
-            <Search />
+            <Search
+                patientList={patientList}
+                setFilteredPatientList={setFilteredPatientList}
+            />
             <div>
-                {members.map((member, index) => (
-                    <Member
-                        key={index}
-                        member={member}
-                        practiceId={practiceId}
-                    />
-                ))}
-
+                {filteredPatientList
+                    ? filteredPatientList?.map((patient, i) => (
+                          <Patient
+                              key={i}
+                              patient={patient}
+                              practiceId={businessId}
+                          />
+                      ))
+                    : patientList?.map((patient, i) => (
+                          <Patient
+                              key={i}
+                              patient={patient}
+                              practiceId={businessId}
+                          />
+                      ))}
                 <div
                     className="Member"
                     style={{ cursor: "pointer", marginTop: "6px" }}
@@ -61,39 +62,32 @@ function Members({ practiceId }) {
     );
 }
 
-const Member = ({ member, practiceId }) => {
-    const queryRef = getPatient(member.patient.path);
-
-    const query = useFirestoreDocument(
-        ["patient", member.patient.path],
-        queryRef
-    );
-
-    if (query.isLoading) {
-        return <div>Loading...</div>;
-    }
-
-    const memberData = query.data; // DocumentSnapshot
-
+const Patient = ({ patient, practiceId }) => {
     return (
         <div
-            style={{ cursor: "pointer", marginTop: "6px" }}
+            style={{
+                cursor: "pointer",
+                marginTop: "6px",
+                border: "1px solid #ccc",
+                borderRadius: "10px",
+                padding: "10px",
+            }}
             onClick={() =>
                 createChannelFromMember(
                     practiceId,
-                    member.patient.id,
-                    memberData.data().cellPhone
+                    patient.id,
+                    patient.cellPhone
                 )
             }
             className="Member"
         >
             <div className="MemberStatus offline" />
-            {memberData.data().displayName}
+            {patient.firstName + " " + patient.lastName}
         </div>
     );
 };
 
-const Search = () => {
+const Search = ({ setFilteredPatientList, patientList }) => {
     const [searchLabel, setSearchLabel] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
 
@@ -101,6 +95,10 @@ const Search = () => {
         e.preventDefault();
 
         let value = e.target.value;
+
+        if (value === "") {
+            setFilteredPatientList(patientList);
+        }
 
         setSearchTerm(value);
     };
@@ -112,13 +110,19 @@ const Search = () => {
     };
 
     const handleSearch = (e) => {
-        e.preventDefault();
+        // e.preventDefault();
 
-        // const result = patients?.filter((patient) =>
-        //     patient[searchLabel].startsWith(searchTerm)
-        // );
+        const result = patientList?.filter((patient) =>
+            patient[searchLabel]
+                .toLowerCase()
+                .startsWith(
+                    searchLabel === "cellPhone"
+                        ? "+1" + searchTerm
+                        : searchTerm.toLowerCase()
+                )
+        );
 
-        // setFilteredpatients(result);
+        setFilteredPatientList(result);
     };
 
     return (
@@ -135,7 +139,7 @@ const Search = () => {
                 >
                     <MenuItem value={"firstName"}>First Name</MenuItem>
                     <MenuItem value={"lastName"}>Last Name</MenuItem>
-                    <MenuItem value={"cellNumber"}>Cell Number</MenuItem>
+                    <MenuItem value={"cellPhone"}>Cell Number</MenuItem>
                 </Select>
             </FormControl>
             <FormControl sx={{ m: 1 }} variant="outlined">
@@ -166,4 +170,10 @@ const Search = () => {
     );
 };
 
-export default Members;
+const mapStateToProps = (state) => {
+    return {
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, {})(Members);

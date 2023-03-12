@@ -1,16 +1,11 @@
-import { useContext } from "react";
+import { useGetPatientByCellphone } from "../../../dataModels/practice/practiceModel";
 
-import {
-    useGetChatChannels,
-    useGetDoc,
-    useGetPatientByCellphone,
-} from "../../../dataModels/practice/practiceModel";
-
-import { PracticeContext } from "../../../contexts/PracticeContext";
+import { useGetChatChannels } from "../../../dataModels/practice/chatModel";
 
 import { Link } from "react-router-dom";
 
 import styled from "styled-components";
+import { connect } from "react-redux";
 
 const Container = styled.div`
     border-top: 1px #eee solid;
@@ -22,30 +17,45 @@ const Title = styled.p`
     padding: 0px 20px;
 `;
 
-function ChannelNav() {
-    const practice = useContext(PracticeContext);
+function ChannelNav({ businessId }) {
+    console.log("Business ID at Channel Nav: ", businessId);
 
-    const channels = useGetChatChannels(practice.practiceId);
+    const channels = useGetChatChannels(businessId);
+
+    console.log("Channels at channel Nav: ", channels);
 
     return (
         <Container>
             <Title>Open Channels</Title>
             <Link to="/practice/chat/"># Help Desk</Link>
             {channels.map((channel, index) => (
-                <ChannelListItem key={index} index={index} channel={channel} />
+                <ChannelListItem
+                    key={index}
+                    businessId={businessId}
+                    channel={channel}
+                />
             ))}
         </Container>
     );
 }
 
-const ChannelListItem = ({ channel, handleIdChange, index }) => {
-    const author = useGetPatientByCellphone(channel.id);
-    console.log("Author: ", author);
+const ChannelListItem = ({ channel, businessId }) => {
+    const author = useGetPatientByCellphone(businessId, channel.id);
+
     return (
-        <Link key={index} to={`/practice/chat/${channel.id}`}>
-            # {author?.displayName ? author?.displayName : channel.id}
+        <Link to={`/practice/chat/${channel.id}`}>
+            #{" "}
+            {author?.firstName
+                ? `${author?.firstName} ${author?.lastName}`
+                : channel.id}
         </Link>
     );
 };
 
-export default ChannelNav;
+const mapStateToProps = (state) => {
+    return {
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, {})(ChannelNav);

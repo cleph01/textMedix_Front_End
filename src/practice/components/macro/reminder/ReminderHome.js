@@ -6,12 +6,15 @@ import Calendar from "../../micro/calendar/Calendar";
 
 import ReminderSetReminder from "../../micro/reminder/ReminderSetReminder";
 
+import ReminderDisplay from "../../micro/reminder/ReminderDisplay";
+
 import ReminderMembers from "../../micro/reminder/ReminderMembers";
 import {
     getRemindersByPatientId,
     useGetAllReminders,
     useGetRemindersByPatientId,
 } from "../../../dataModels/practice/reminderModel";
+import { connect } from "react-redux";
 
 const CalendarWrapper = styled.div`
     .fc {
@@ -41,18 +44,19 @@ const RightSidebar = styled.section`
 
 const Body = styled.section`
     display: flex;
+    height: 100%;
 `;
 
-const Notification = () => {
+const Notification = ({ businessId }) => {
+    console.log("Practice Id at REminers: ", businessId);
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [reminders, setReminders] = useState();
+    const [calendarView, setCalendarView] = useState(false);
 
-    const practiceId = "fpVAtpBjJLPUanlCydra";
-
-    const loadReminders = useGetAllReminders(practiceId);
+    const loadReminders = useGetAllReminders(businessId);
 
     const fetchReminders = async (patientId) => {
-        let reminders = await getRemindersByPatientId(patientId, practiceId);
+        let reminders = await getRemindersByPatientId(patientId, businessId);
         setReminders(reminders);
     };
 
@@ -63,13 +67,18 @@ const Notification = () => {
     return (
         <Container>
             <MainSection>
-                <Header />
+                <Header setCalendarView={setCalendarView} />
                 <Body>
-                    <CalendarWrapper>
-                        <Calendar
-                            events={reminders ? reminders : loadReminders}
-                        />
-                    </CalendarWrapper>
+                    {calendarView ? (
+                        <CalendarWrapper>
+                            <Calendar
+                                events={reminders ? reminders : loadReminders}
+                            />
+                        </CalendarWrapper>
+                    ) : (
+                        <ReminderDisplay practiceId={businessId} />
+                    )}
+
                     <ReminderSetReminder
                         selectedPatient={selectedPatient}
                         reminders={reminders}
@@ -80,7 +89,7 @@ const Notification = () => {
             </MainSection>
             <RightSidebar>
                 <ReminderMembers
-                    practiceId={practiceId}
+                    practiceId={businessId}
                     setSelectedPatient={setSelectedPatient}
                     fetchReminders={fetchReminders}
                 />
@@ -105,16 +114,40 @@ const CellPPhone = styled.div`
 `;
 
 const Recipient = styled.div``;
+const Links = styled.div`
+    display: flex;
+    justify-content: space-apart;
+`;
+const ViewLink = styled.div`
+    margin-left: 15px;
+    border: 1px solid #898c8e;
+    border-radius: 5px;
+    padding: 10px;
+    cursor: pointer;
+`;
 
-const Header = () => {
+const Header = ({ setCalendarView }) => {
     return (
         <HeaderContainer>
             <Recipient>
-                <Name>@name</Name>
-                <CellPPhone>bla</CellPPhone>
+                <Name>Patient SMS Reminders </Name>
             </Recipient>
+            <Links>
+                <ViewLink onClick={() => setCalendarView(true)}>
+                    Calendar View
+                </ViewLink>
+                <ViewLink onClick={() => setCalendarView(false)}>
+                    Daily View
+                </ViewLink>
+            </Links>
         </HeaderContainer>
     );
 };
 
-export default Notification;
+const mapStateToProps = (state) => {
+    return {
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, {})(Notification);

@@ -16,6 +16,37 @@ import {
 
 import { db } from "../../../utils/db/firebaseConfig";
 
+const addReminder = async (reminderObj) => {
+    await addDoc(collection(db, "notifications"), reminderObj);
+};
+
+const useGetReminderByDate = (date, practiceId) => {
+    console.log("date and practiceId: ", date.format("l"), practiceId);
+    const [reminders, setReminders] = useState();
+
+    useEffect(() => {
+        const collectionRef = collection(db, "notifications");
+
+        let q = query(
+            collectionRef,
+            where("sendOnDate", "==", date.format("l"))
+        );
+
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            setReminders(
+                querySnapshot.docs.map((doc) => ({
+                    id: doc.id,
+                    ...doc.data(),
+                }))
+            );
+        });
+
+        return unsubscribe;
+    }, [practiceId]);
+
+    return reminders;
+};
+
 // Get All the Blast Groups the patient has been assigned to
 const useGetAllReminders = (practiceId) => {
     const [reminders, setReminders] = useState();
@@ -78,5 +109,6 @@ const getReminderCollectionRef = () => {
 export {
     useGetAllReminders,
     getRemindersByPatientId,
-    getReminderCollectionRef,
+    addReminder,
+    useGetReminderByDate,
 };

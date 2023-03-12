@@ -1,53 +1,45 @@
-import { useState, useEffect } from "react";
 import {
     FormControl,
     IconButton,
+    InputAdornment,
     InputLabel,
     MenuItem,
     OutlinedInput,
     Select,
 } from "@mui/material";
-
-import InputAdornment from "@mui/material/InputAdornment";
-
+import React, { useState } from "react";
 import {
     useGetPracticePatients,
     useGetDoc,
-    createChannel,
-    getPatients,
+    createChannelFromMember,
+    practicePatientListQuery,
+    getPatient,
 } from "../../../dataModels/practice/practiceModel";
 
 import SearchIcon from "@mui/icons-material/Search";
+import {
+    useFirestoreDocument,
+    useFirestoreQueryData,
+} from "@react-query-firebase/firestore";
+import { connect } from "react-redux";
 
-function Members({ practiceId, setSelectedPatient, fetchReminders }) {
-    const members = useGetPracticePatients(practiceId);
+function Members({ businessId, setSelectedPatient, fetchReminders }) {
+    const patientList = useGetPracticePatients(businessId);
 
-    const [filteredMembers, setFilteredMembers] = useState();
-    const [originalMembers, setOriginalMembers] = useState();
+    if (!patientList) {
+        return <div>Loading...</div>;
+    }
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const patients = await getPatients(members);
-            setFilteredMembers(patients);
-            setOriginalMembers(patients);
-        };
-
-        fetchData().catch((error) => console.log("Error: ", error));
-    }, [members]);
-
+    console.log("patients in Reminder patients: ", patientList);
     return (
         <div>
-            <Search
-                setFilteredMembers={setFilteredMembers}
-                filteredMembers={filteredMembers}
-                originalMembers={originalMembers}
-            />
+            <Search />
             <div>
-                {filteredMembers?.map((member, index) => (
+                {patientList.map((patient, index) => (
                     <Member
                         key={index}
-                        member={member}
-                        practiceId={practiceId}
+                        patient={patient}
+                        practiceId={businessId}
                         setSelectedPatient={setSelectedPatient}
                         fetchReminders={fetchReminders}
                     />
@@ -65,26 +57,39 @@ function Members({ practiceId, setSelectedPatient, fetchReminders }) {
     );
 }
 
-const Member = ({ member, practiceId, setSelectedPatient, fetchReminders }) => {
+const Member = ({
+    patient,
+    practiceId,
+    setSelectedPatient,
+    fetchReminders,
+}) => {
+    console.log("patient at Reminder patient: ", patient);
+
     const handleSelectPatient = (e) => {
         e.preventDefault();
-        setSelectedPatient(member);
-        fetchReminders(member.id);
+        setSelectedPatient(patient);
+        fetchReminders(patient?.id);
     };
 
     return (
         <div
-            style={{ cursor: "pointer", marginTop: "6px" }}
+            style={{
+                cursor: "pointer",
+                marginTop: "6px",
+                border: "1px solid #ccc",
+                borderRadius: "10px",
+                padding: "10px",
+            }}
             onClick={handleSelectPatient}
             className="Member"
         >
             <div className="MemberStatus offline" />
-            {member?.displayName}
+            {patient.firstName + " " + patient.lastName}
         </div>
     );
 };
 
-const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
+const Search = () => {
     const [searchLabel, setSearchLabel] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
 
@@ -92,10 +97,6 @@ const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
         e.preventDefault();
 
         let value = e.target.value;
-
-        if (value === "") {
-            setFilteredMembers(originalMembers);
-        }
 
         setSearchTerm(value);
     };
@@ -109,13 +110,11 @@ const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
     const handleSearch = (e) => {
         e.preventDefault();
 
-        const result = filteredMembers?.filter((patient) =>
-            patient[searchLabel]
-                .toLowerCase()
-                .startsWith(searchTerm.toLowerCase())
-        );
+        // const result = patients?.filter((patient) =>
+        //     patient[searchLabel].startsWith(searchTerm)
+        // );
 
-        setFilteredMembers(result);
+        // setFilteredpatients(result);
     };
 
     return (
@@ -146,7 +145,7 @@ const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
                     placeholder="Search..."
                     onChange={handleSearchTermChange}
                     endAdornment={
-                        <InputAdornment position="start">
+                        <InputAdornment position="end">
                             <IconButton
                                 aria-label="search for new term"
                                 onClick={handleSearch}
@@ -163,4 +162,10 @@ const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
     );
 };
 
-export default Members;
+const mapStateToProps = (state) => {
+    return {
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, {})(Members);

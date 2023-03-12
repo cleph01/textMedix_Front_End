@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { connect } from "react-redux";
 import { useHistory } from "react-router-dom";
 
 import styled from "styled-components";
@@ -14,11 +15,11 @@ const Header = styled.header`
 `;
 
 const Body = styled.div``;
-function ChatWelcome() {
+function ChatWelcome({businessId}) {
     return (
         <Container>
             <Header>
-                <InputNumber />
+                <InputNumber businessId={businessId} />
                 <h1>Connect the way patients prefer.</h1>
                 <div>
                     Because TextMedix immediately takes the conversation to
@@ -69,10 +70,8 @@ const InputWrapper = styled.div`
     justify-content: space-between;
     height: 50px;
 `;
-const InputNumber = () => {
+const InputNumber = ({businessId}) => {
     const history = useHistory();
-
-    const practiceId = "fpVAtpBjJLPUanlCydra";
 
     const [cellphone, setCellphone] = useState({
         formatted: "",
@@ -128,7 +127,7 @@ const InputNumber = () => {
             alert("Phone Num Incomplete");
         } else {
             const response = await createChannelFromOneOff(
-                practiceId,
+                businessId,
                 cellphone.raw
             );
 
@@ -138,7 +137,7 @@ const InputNumber = () => {
         }
     };
 
-    console.log("celphone at Blast Welcome: ", cellphone.raw);
+   
     return (
         <HeaderContainer>
             <InputWrapper>
@@ -155,4 +154,11 @@ const InputNumber = () => {
     );
 };
 
-export default ChatWelcome;
+const mapStateToProps = (state) => {
+    return {
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, {})(ChatWelcome);
+

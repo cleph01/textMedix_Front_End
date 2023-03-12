@@ -1,5 +1,5 @@
-import { useEffect, useState, useContext } from "react";
-import { PracticeContext } from "../../../contexts/PracticeContext";
+import { useState } from "react";
+
 import { Link, Route, Switch, useParams, useHistory } from "react-router-dom";
 import {
     Avatar,
@@ -21,13 +21,16 @@ import {
     getPatientRef,
     getPatients,
     useGetPracticePatients,
+    useGetDoc,
 } from "../../../dataModels/practice/practiceModel";
 
 import AddPatient from "../../micro/patients/AddPatient";
 import {
     useFirestoreDocument,
+    useFirestoreDocumentData,
     useFirestoreQueryData,
 } from "@react-query-firebase/firestore";
+import { connect } from "react-redux";
 
 const Container = styled.div`
     display: flex;
@@ -58,18 +61,14 @@ const Body = styled.section`
     overflow: scroll;
 `;
 
-const AllPatientsHome = () => {
-    const practice = useContext(PracticeContext);
+const AllPatientsHome = ({ businessId }) => {
+    const [filteredPatientList, setFilteredPatientList] = useState(null);
 
-    const queryRef = practicePatientListQuery(practice.practiceId);
+    const patientList = useGetPracticePatients(businessId);
 
-    const query = useFirestoreQueryData(["patientList"], queryRef);
-
-    if (query.isLoading) {
+    if (!patientList) {
         return <div>Loading...</div>;
     }
-
-    const patientList = query.data;
 
     console.log("patientList: ", patientList);
     return (
@@ -81,10 +80,18 @@ const AllPatientsHome = () => {
                 <Route path="/practice/patients">
                     <MainSection>
                         <Body>
-                            <Header />
-                            {patientList?.map((patient) => (
-                                <Patient patient={patient.patient} />
-                            ))}
+                            <Header
+                                patientList={patientList}
+                                filteredPatientList={filteredPatientList}
+                                setFilteredPatientList={setFilteredPatientList}
+                            />
+                            {filteredPatientList
+                                ? filteredPatientList?.map((patient, i) => (
+                                      <Patient key={i} patient={patient} />
+                                  ))
+                                : patientList?.map((patient, i) => (
+                                      <Patient key={i} patient={patient} />
+                                  ))}
                         </Body>
                     </MainSection>
                     <RightSidebar>
@@ -97,7 +104,7 @@ const AllPatientsHome = () => {
                                         placeItems: "center",
                                     }}
                                 >
-                                    <PatientWindow />
+                                    <PatientWindow businessId={businessId} />
                                 </div>
                             </Route>
                             <Route path="/practice/patients">
@@ -186,12 +193,20 @@ const HeaderContainer = styled.div`
     border-bottom: solid 1px #ccc;
 `;
 
-const Header = () => {
+const Header = ({
+    patientList,
+    filteredPatientList,
+    setFilteredPatientList,
+}) => {
     const history = useHistory();
 
     return (
         <HeaderContainer>
-            <Search />
+            <Search
+                patientList={patientList}
+                filteredPatientList={filteredPatientList}
+                setFilteredPatientList={setFilteredPatientList}
+            />
             <div
                 style={{ cursor: "pointer", marginLeft: "35px" }}
                 onClick={() => history.push("/practice/patients/add")}
@@ -202,18 +217,18 @@ const Header = () => {
     );
 };
 
-const PatientWindow = () => {
+const PatientWindow = ({ businessId }) => {
     const { patientId } = useParams();
 
-    const patientRef = getPatientRef(patientId);
+    const patient = useGetDoc(`practice/${businessId}/patients/${patientId}`);
 
-    const patient = useFirestoreDocument(["patient", patientId], patientRef);
-
-    if (patient.isLoading) {
+    if (!patient) {
         return <div>Loading...</div>;
     }
 
-    const snapshot = patient.data;
+    console.log("Patient at patien home: ", patient);
+
+    const patientData = patient.data;
 
     return (
         <div
@@ -233,7 +248,10 @@ const PatientWindow = () => {
                 src="https://placekitten.com/64/64"
                 sx={{ width: 76, height: 76 }}
             />
-            <h4>Display Name: {snapshot.data().displayName}</h4>
+            <h4>
+                Display Name:{" "}
+                {patientData.firstName + " " + patientData.lastName}
+            </h4>
             <div style={{ display: "flex" }}>
                 <div
                     style={{
@@ -242,17 +260,15 @@ const PatientWindow = () => {
                     }}
                 >
                     <div style={{ margin: "10px 0px" }}>
-                        First Name: {snapshot.data().firstName}
+                        First Name: {patientData.firstName}
                     </div>
                     <div style={{ margin: "10px 0px" }}>
-                        Last Name: {snapshot.data().lastName}
+                        Last Name: {patientData.lastName}
                     </div>
                     <div style={{ margin: "10px 0px" }}>
-                        cellNumber: {snapshot.data().cellPhone}
+                        cellNumber: {patientData.cellPhone}
                     </div>
-                    <div style={{ margin: "10px 0px" }}>
-                        email: {snapshot.data().email}
-                    </div>
+                    <div style={{ margin: "10px 0px" }}>email: 'email'</div>
                 </div>
                 <div
                     style={{
@@ -268,22 +284,6 @@ const PatientWindow = () => {
 };
 
 const Patient = ({ patient }) => {
-    console.log("patientId at patient: ", patient);
-
-    const patientRef = getPatient(patient.path);
-
-    const patientDoc = useFirestoreDocument(
-        ["patient", patient.id],
-        patientRef
-    );
-
-    if (patientDoc.isLoading) {
-        return <div>Loading...</div>;
-    }
-
-    const snapshot = patientDoc.data;
-
-    console.log("snapshot: ", snapshot);
     return (
         <div
             style={{
@@ -296,7 +296,7 @@ const Patient = ({ patient }) => {
             }}
         >
             <Link
-                to={`/practice/patients/${snapshot.id}`}
+                to={`/practice/patients/${patient.id}`}
                 style={{ textDecoration: "none", color: "inherit" }}
             >
                 <div style={{ display: "flex", width: "50%" }}>
@@ -307,9 +307,9 @@ const Patient = ({ patient }) => {
                         />
                     </ListItemAvatar>
                     <div style={{ fontWeight: "bold" }}>
-                        {snapshot.data().displayName}
+                        {patient.displayName}
                     </div>
-                    <div style={{ display: "flex", marginLeft: "10px" }}>
+                    {/* <div style={{ display: "flex", marginLeft: "10px" }}>
                         <div
                             style={{
                                 backgroundColor: "transparent",
@@ -350,7 +350,7 @@ const Patient = ({ patient }) => {
                         >
                             &#9733;
                         </div>
-                    </div>
+                    </div> */}
                 </div>
                 <div style={{ display: "flex", marginTop: "10px" }}>
                     <div
@@ -360,13 +360,13 @@ const Patient = ({ patient }) => {
                         }}
                     >
                         <div style={{ margin: "10px 0px" }}>
-                            First Name: {snapshot.data().firstName}
+                            First Name: {patient.firstName}
                         </div>
                         <div style={{ margin: "10px 0px" }}>
-                            Last Name: {snapshot.data().lastName}
+                            Last Name: {patient.lastName}
                         </div>
                         <div style={{ margin: "10px 0px" }}>
-                            cellNumber: {snapshot.data().cellPhone}
+                            cellNumber: {patient.cellPhone.slice(2)}
                         </div>
                         <div style={{ margin: "10px 0px" }}>
                             email: member.email
@@ -381,7 +381,7 @@ const Patient = ({ patient }) => {
     );
 };
 
-const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
+const Search = ({ setFilteredPatientList, patientList }) => {
     const [searchLabel, setSearchLabel] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
 
@@ -391,7 +391,7 @@ const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
         let value = e.target.value;
 
         if (value === "") {
-            setFilteredMembers(originalMembers);
+            setFilteredPatientList(patientList);
         }
 
         setSearchTerm(value);
@@ -404,15 +404,15 @@ const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
     };
 
     const handleSearch = (e) => {
-        e.preventDefault();
+        // e.preventDefault();
 
-        const result = filteredMembers?.filter((patient) =>
+        const result = patientList?.filter((patient) =>
             patient[searchLabel]
                 .toLowerCase()
                 .startsWith(searchTerm.toLowerCase())
         );
 
-        setFilteredMembers(result);
+        setFilteredPatientList(result);
     };
 
     return (
@@ -461,4 +461,10 @@ const Search = ({ setFilteredMembers, filteredMembers, originalMembers }) => {
     );
 };
 
-export default AllPatientsHome;
+const mapStateToProps = (state) => {
+    return {
+        businessId: state.business.businessId,
+    };
+};
+
+export default connect(mapStateToProps, {})(AllPatientsHome);
